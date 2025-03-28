@@ -1,26 +1,26 @@
 START TRANSACTION;
--- Insert new or changed data from raw_heroes
-INSERT INTO clean_heroes (name, role, pick_rate, win_rate, game_mode, platform, raw_source_id)
-SELECT 
-  (r.raw_json ->> 'name')::TEXT AS name,
-  (r.raw_json ->> 'role')::TEXT AS role,
-  (r.raw_json ->> 'pickRate')::NUMERIC AS pick_rate,
-  (r.raw_json ->> 'winRate')::NUMERIC AS win_rate,
-  (r.raw_json ->> 'gameMode')::TEXT AS game_mode,
-  'pc' AS platform,
-  r.id
-FROM heroes r
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM clean_heroes c
-  WHERE c.name = (r.raw_json ->> 'name')::TEXT
-    AND c.role = (r.raw_json ->> 'role')::TEXT
-    AND c.pick_rate = (r.raw_json ->> 'pickRate')::NUMERIC
-    AND c.win_rate = (r.raw_json ->> 'winRate')::NUMERIC
-    AND c.game_mode = (r.raw_json ->> 'gameMode')::TEXT
-    AND c.platform = 'pc'
+-- Insert new rows from the quickPlay array
+INSERT INTO clean_heroes (
+  name, role, pick_rate, win_rate, game_mode, platform, raw_source_id
 )
-AND (r.raw_json ->> 'name') IS NOT NULL
-AND (r.raw_json ->> 'pickRate') ~ '^[0-9.]+$'
-AND (r.raw_json ->> 'winRate') ~ '^[0-9.]+$';
+SELECT
+  hero.value ->> 'name' AS name,
+  hero.value ->> 'role' AS role,
+  REPLACE(hero.value ->> 'pickRate', '%', '')::NUMERIC AS pick_rate,
+  REPLACE(hero.value ->> 'winRate', '%', '')::NUMERIC AS win_rate,
+  'quickPlay' AS game_mode,
+  'pc' AS platform,
+  h.id AS raw_source_id
+FROM heroes h,
+  jsonb_array_elements(h.raw_json -> 'quickPlay') AS hero(value)
+WHERE NOT EXISTS (
+  SELECT 1 FROM clean_heroes c
+  WHERE c.name = hero.value ->> 'name'
+    AND c.role = hero.value ->> 'role'
+    AND c.pick_rate = REPLACE(hero.value ->> 'pickRate', '%', '')::NUMERIC
+    AND c.win_rate = REPLACE(hero.value ->> 'winRate', '%', '')::NUMERIC
+    AND c.game_mode = 'quickPlay'
+    AND c.platform = 'pc'
+);
+
 COMMIT;
