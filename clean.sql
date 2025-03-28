@@ -1,5 +1,4 @@
 START TRANSACTION;
-START TRANSACTION;
 -- Define all game modes you want to process
 WITH all_modes AS (
   SELECT h.id AS raw_source_id, 'quickPlay' AS mode, jsonb_array_elements(h.raw_json -> 'quickPlay') AS hero
