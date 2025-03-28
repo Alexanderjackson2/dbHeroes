@@ -8,7 +8,7 @@ SELECT
   (r.raw_json ->> 'winRate')::NUMERIC AS win_rate,
   (r.raw_json ->> 'gameMode')::TEXT AS game_mode,
   r.id
-FROM raw_heroes r
+FROM heroes r
 WHERE NOT EXISTS (
   SELECT 1
   FROM clean_heroes c
