@@ -1,37 +1,38 @@
 START TRANSACTION;
 
--- Step 1: Insert currencies (both source and target)
+-- Step 1: Insert all distinct currencies
 INSERT INTO currencies (code)
-SELECT DISTINCT raw_data.raw_json ->> 'source' AS code
-FROM exchange_rates AS raw_data
+SELECT DISTINCT raw_data.raw_json ->> 'source'
+FROM exchange_rates raw_data
 UNION
 SELECT DISTINCT SUBSTRING(pair.key FROM 4)
-FROM exchange_rates AS raw_data,
+FROM exchange_rates raw_data,
      LATERAL jsonb_each_text(raw_data.raw_json::jsonb -> 'quotes') AS pair
-WHERE pair.key LIKE 'USD%'  -- assuming USD is source
+WHERE pair.key LIKE 'USD%'  -- Assuming USD as base
 
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
--- Step 2: Insert exchange_pairs
+-- Step 2: Insert exchange pairs
 INSERT INTO exchange_pairs (source_currency, target_currency)
 SELECT DISTINCT
   raw_data.raw_json ->> 'source' AS source_currency,
   SUBSTRING(pair.key FROM 4) AS target_currency
-FROM exchange_rates AS raw_data
+FROM exchange_rates raw_data
 JOIN LATERAL jsonb_each_text(raw_data.raw_json::jsonb -> 'quotes') AS pair ON TRUE
-WHERE pair.key LIKE 'USD%'  -- filter valid currency codes
-ON CONFLICT (source_currency, target_currency) DO NOTHING;
+WHERE pair.key LIKE 'USD%'
 
--- Step 3: Insert cleaned rates using normalized tables
+ON CONFLICT DO NOTHING;
+
+-- Step 3: Insert normalized exchange rate data
 INSERT INTO clean_currency_rates (
   exchange_pair_id, quote_timestamp, exchange_rate, raw_source_id
 )
 SELECT
   ep.id,
-  raw_data.last_updated AS quote_timestamp,
-  pair.value::NUMERIC AS exchange_rate,
-  raw_data.id AS raw_source_id
-FROM exchange_rates AS raw_data
+  raw_data.last_updated,
+  pair.value::NUMERIC,
+  raw_data.id
+FROM exchange_rates raw_data
 JOIN LATERAL jsonb_each_text(raw_data.raw_json::jsonb -> 'quotes') AS pair ON TRUE
 JOIN exchange_pairs ep
   ON ep.source_currency = raw_data.raw_json ->> 'source'
