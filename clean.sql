@@ -1,45 +1,26 @@
 START TRANSACTION;
--- Define all game modes you want to process
-WITH all_modes AS (
-  SELECT h.id AS raw_source_id, 'quickPlay' AS mode, jsonb_array_elements(h.raw_json -> 'quickPlay') AS hero
-  FROM heroes h
-  UNION ALL
-  SELECT h.id, 'competitiveSummary', jsonb_array_elements(h.raw_json -> 'competitiveSummary') AS hero FROM heroes h
-  UNION ALL
-  SELECT h.id, 'competitiveGold', jsonb_array_elements(h.raw_json -> 'competitiveGold') AS hero FROM heroes h
-  UNION ALL
-  SELECT h.id, 'competitiveSilver', jsonb_array_elements(h.raw_json -> 'competitiveSilver') AS hero FROM heroes h
-  UNION ALL
-  SELECT h.id, 'competitiveBronze', jsonb_array_elements(h.raw_json -> 'competitiveBronze') AS hero FROM heroes h
-  UNION ALL
-  SELECT h.id, 'competitivePlatinum', jsonb_array_elements(h.raw_json -> 'competitivePlatinum') AS hero FROM heroes h
-  UNION ALL
-  SELECT h.id, 'competitiveDiamond', jsonb_array_elements(h.raw_json -> 'competitiveDiamond') AS hero FROM heroes h
-  UNION ALL
-  SELECT h.id, 'competitiveGrandmaster', jsonb_array_elements(h.raw_json -> 'competitiveGrandmaster') AS hero FROM heroes h
-  UNION ALL
-  SELECT h.id, 'competitiveCelestialAndAbove', jsonb_array_elements(h.raw_json -> 'competitiveCelestialAndAbove') AS hero FROM heroes h
-)
 
-INSERT INTO clean_heroes (
-  name, role, pick_rate, win_rate, game_mode, platform, raw_source_id
+-- Normalize quotes into clean_currency_rates
+INSERT INTO clean_currency_rates (
+  currency_code, exchange_rate, source_currency, quote_timestamp, raw_source_id
 )
 SELECT
-  hero ->> 'name' AS name,
-  hero ->> 'role' AS role,
-  REPLACE(hero ->> 'pickRate', '%', '')::NUMERIC AS pick_rate,
-  REPLACE(hero ->> 'winRate', '%', '')::NUMERIC AS win_rate,
-  mode AS game_mode,
-  'pc' AS platform,
-  raw_source_id
-FROM all_modes
+  -- Trim "USD" from "USDAED" to get "AED"
+  SUBSTRING(pair.key FROM 4) AS currency_code,
+  pair.value::NUMERIC AS exchange_rate,
+  raw_data.raw_json ->> 'source' AS source_currency,
+  raw_data.timestamp,
+  raw_data.id AS raw_source_id
+FROM raw_currency_data AS raw_data
+-- Explode the "quotes" JSON object into key-value pairs
+JOIN LATERAL jsonb_each_text(raw_data.raw_json::jsonb -> 'quotes') AS pair(key, value) ON TRUE
 WHERE NOT EXISTS (
-  SELECT 1 FROM clean_heroes c
-  WHERE c.name = hero ->> 'name'
-    AND c.role = hero ->> 'role'
-    AND c.pick_rate = REPLACE(hero ->> 'pickRate', '%', '')::NUMERIC
-    AND c.win_rate = REPLACE(hero ->> 'winRate', '%', '')::NUMERIC
-    AND c.game_mode = mode
-    AND c.platform = 'pc'
+  SELECT 1 FROM clean_currency_rates c
+  WHERE c.currency_code = SUBSTRING(pair.key FROM 4)
+    AND c.exchange_rate = pair.value::NUMERIC
+    AND c.source_currency = raw_data.raw_json ->> 'source'
+    AND c.quote_timestamp = raw_data.timestamp
+    AND c.raw_source_id = raw_data.id
 );
+
 COMMIT;
