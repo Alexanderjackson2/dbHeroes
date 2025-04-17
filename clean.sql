@@ -7,7 +7,7 @@ SELECT
   SUBSTRING(pair.key FROM 4) AS currency_code,
   pair.value::NUMERIC AS exchange_rate,
   raw_data.raw_json ->> 'source' AS source_currency,
-  raw_data.timestamp,
+  raw_data.last_updated AS quote_timestamp,
   raw_data.id AS raw_source_id
 FROM exchange_rates AS raw_data
 JOIN LATERAL jsonb_each_text(raw_data.raw_json::jsonb -> 'quotes') AS pair(key, value) ON TRUE
@@ -16,7 +16,7 @@ WHERE NOT EXISTS (
   WHERE c.currency_code = SUBSTRING(pair.key FROM 4)
     AND c.exchange_rate = pair.value::NUMERIC
     AND c.source_currency = raw_data.raw_json ->> 'source'
-    AND c.quote_timestamp = raw_data.timestamp
+    AND c.quote_timestamp = raw_data.last_updated
     AND c.raw_source_id = raw_data.id
 );
 
