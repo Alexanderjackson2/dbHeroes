@@ -30,7 +30,7 @@ WHERE raw_data.raw_json ->> 'source' IS NOT NULL
 ON CONFLICT (source_currency, target_currency) DO NOTHING;
 
 -- Step 3: Insert cleaned exchange rate records (no duplicates)
-INSERT INTO clean_currency_rates_3nf (
+INSERT INTO api.clean_currency_rates_3nf (
   exchange_pair_id, quote_timestamp, exchange_rate, raw_source_id
 )
 SELECT
@@ -47,7 +47,7 @@ WHERE raw_data.raw_json ->> 'source' IS NOT NULL
   AND SUBSTRING(pair.key FROM 4) IS NOT NULL
   AND pair.value IS NOT NULL
   AND NOT EXISTS (
-    SELECT 1 FROM clean_currency_rates_3nf c
+    SELECT 1 FROM api.clean_currency_rates_3nf c
     WHERE c.exchange_pair_id = ep.id
       AND c.quote_timestamp = raw_data.last_updated
       AND c.exchange_rate = pair.value::NUMERIC
