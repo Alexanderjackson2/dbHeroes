@@ -1,7 +1,7 @@
 START TRANSACTION;
 
 -- Step 1: Ensure currencies are inserted (no nulls, no duplicates)
-INSERT INTO currencies (code)
+INSERT INTO api.currencies (code)
 SELECT DISTINCT code
 FROM (
   SELECT raw_data.raw_json ->> 'source' AS code
@@ -19,7 +19,7 @@ WHERE code IS NOT NULL
 ON CONFLICT (code) DO NOTHING;
 
 -- Step 2: Ensure exchange pairs exist
-INSERT INTO exchange_pairs (source_currency, target_currency)
+INSERT INTO api.exchange_pairs (source_currency, target_currency)
 SELECT DISTINCT
   raw_data.raw_json ->> 'source' AS source_currency,
   SUBSTRING(pair.key FROM 4) AS target_currency
