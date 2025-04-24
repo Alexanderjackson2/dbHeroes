@@ -29,7 +29,7 @@ WHERE raw_data.raw_json ->> 'source' IS NOT NULL
   AND SUBSTRING(pair.key FROM 4) IS NOT NULL
 ON CONFLICT (source_currency, target_currency) DO NOTHING;
 
--- Step 3: Insert cleaned exchange rate records (no duplicates)
+-- Step 3: Insert cleaned exchange rate records from the API exchange_pairs
 INSERT INTO api.clean_currency_rates_3nf (
   exchange_pair_id, quote_timestamp, exchange_rate, raw_source_id
 )
@@ -40,7 +40,7 @@ SELECT
   raw_data.id
 FROM exchange_rates raw_data
 JOIN LATERAL jsonb_each_text(raw_data.raw_json::jsonb -> 'quotes') AS pair ON TRUE
-JOIN exchange_pairs ep
+JOIN api.exchange_pairs ep  -- corrected schema reference
   ON ep.source_currency = raw_data.raw_json ->> 'source'
   AND ep.target_currency = SUBSTRING(pair.key FROM 4)
 WHERE raw_data.raw_json ->> 'source' IS NOT NULL
@@ -53,4 +53,5 @@ WHERE raw_data.raw_json ->> 'source' IS NOT NULL
       AND c.exchange_rate = pair.value::NUMERIC
       AND c.raw_source_id = raw_data.id
 );
+
 COMMIT;
